@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { getBookings } from '../../services/api';
-import GoogleMap from '../../components/GoogleMap';
+import LeafletMap from '../../components/LeafletMap';
 
 const statusConfig = {
-  MOI_TAO: { text: 'Mới tạo', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
+  MOI_TAO: { text: 'Đang chờ tài xế', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
   DA_NHAN: { text: 'Đã nhận', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
   DANG_CHAY: { text: 'Đang chạy', color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
   HOAN_THANH: { text: 'Hoàn thành', color: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
 
                 {/* Map */}
                 <div className="h-[300px]">
-                  <GoogleMap
+                  <LeafletMap
                     pickup={selectedBooking.pickup}
                     dropoff={selectedBooking.dropoff}
                     driverLocation={selectedBooking.driverLocation}

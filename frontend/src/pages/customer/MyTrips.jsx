@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getBookings, cancelBooking, createPayment } from '../../services/api';
-import GoogleMap from '../../components/GoogleMap';
+import LeafletMap from '../../components/LeafletMap';
 
 const statusConfig = {
   MOI_TAO: { text: 'Đang tìm tài xế', color: 'bg-amber-100 text-amber-700', icon: '🔍', pulse: true },
@@ -10,12 +10,19 @@ const statusConfig = {
   HUY: { text: 'Đã hủy', color: 'bg-red-100 text-red-700', icon: '❌', pulse: false },
 };
 
+const paymentStatusConfig = {
+  CHUA_THANH_TOAN: { text: 'Chưa thanh toán', color: 'bg-red-100 text-red-700', icon: '💰' },
+  CHO_XAC_NHAN: { text: 'Chờ tài xế xác nhận', color: 'bg-amber-100 text-amber-700', icon: '⏳' },
+  DA_THANH_TOAN: { text: 'Đã thanh toán', color: 'bg-green-100 text-green-700', icon: '✅' },
+};
+
 export default function MyTrips() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [paymentModal, setPaymentModal] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentResult, setPaymentResult] = useState(null);
 
   const fetchBookings = async () => {
     try {
@@ -49,14 +56,26 @@ export default function MyTrips() {
   const handlePayment = async (method) => {
     setPaymentLoading(true);
     try {
-      await createPayment({ bookingId: paymentModal._id, method });
-      setPaymentModal(null);
+      const { data } = await createPayment({ bookingId: paymentModal._id, method });
+      setPaymentResult({
+        success: true,
+        method,
+        message: data.message
+      });
       fetchBookings();
     } catch (err) {
-      alert(err.response?.data?.message || 'Thanh toán thất bại');
+      setPaymentResult({
+        success: false,
+        message: err.response?.data?.message || 'Thanh toán thất bại'
+      });
     } finally {
       setPaymentLoading(false);
     }
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModal(null);
+    setPaymentResult(null);
   };
 
   if (loading) {
@@ -152,13 +171,23 @@ export default function MyTrips() {
                         Hủy chuyến
                       </button>
                     )}
-                    {b.status === 'HOAN_THANH' && (
+                    {b.status === 'HOAN_THANH' && b.paymentStatus !== 'DA_THANH_TOAN' && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setPaymentModal(b); }}
-                        className="flex-1 py-2 px-4 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                        className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                          b.paymentStatus === 'CHO_XAC_NHAN'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-500 text-white hover:bg-green-600'
+                        }`}
                       >
-                        <span>💳</span> Thanh toán
+                        <span>{b.paymentStatus === 'CHO_XAC_NHAN' ? '⏳' : '💳'}</span>
+                        {b.paymentStatus === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : 'Thanh toán'}
                       </button>
+                    )}
+                    {b.status === 'HOAN_THANH' && b.paymentStatus === 'DA_THANH_TOAN' && (
+                      <div className="flex-1 py-2 px-4 bg-green-100 text-green-700 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
+                        <span>✅</span> Đã thanh toán
+                      </div>
                     )}
                   </div>
                 </div>
@@ -186,7 +215,7 @@ export default function MyTrips() {
 
                 {/* Map - Tăng kích thước */}
                 <div className="h-[500px] lg:h-[550px]">
-                  <GoogleMap
+                  <LeafletMap
                     key={selectedBooking._id}
                     pickup={selectedBooking.pickup}
                     dropoff={selectedBooking.dropoff}
@@ -226,46 +255,101 @@ export default function MyTrips() {
       {paymentModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden animate-fade-in">
-            <div className="p-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-center">
-              <span className="text-5xl block mb-2">💳</span>
-              <h3 className="text-2xl font-bold">Thanh toán</h3>
-            </div>
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <p className="text-gray-500 mb-1">Số tiền cần thanh toán</p>
-                <p className="text-4xl font-bold text-gray-800">{paymentModal.price.toLocaleString()}đ</p>
-              </div>
-              <div className="space-y-3">
-                <button
-                  onClick={() => handlePayment('TIEN_MAT')}
-                  disabled={paymentLoading}
-                  className="w-full p-4 bg-amber-50 hover:bg-amber-100 rounded-xl flex items-center gap-4 transition-colors disabled:opacity-50"
-                >
-                  <span className="text-3xl">💵</span>
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-800">Tiền mặt</p>
-                    <p className="text-sm text-gray-500">Thanh toán trực tiếp cho tài xế</p>
+            {paymentResult ? (
+              // Kết quả thanh toán
+              <div className="p-6 text-center">
+                <div className={`w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                  paymentResult.success ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  <span className="text-5xl">{paymentResult.success ? '✅' : '❌'}</span>
+                </div>
+                <h3 className={`text-2xl font-bold mb-2 ${
+                  paymentResult.success ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {paymentResult.success ? 'Thành công!' : 'Thất bại!'}
+                </h3>
+                <p className="text-gray-600 mb-6">{paymentResult.message}</p>
+                {paymentResult.success && paymentResult.method === 'TIEN_MAT' && (
+                  <div className="bg-amber-50 p-4 rounded-xl mb-4">
+                    <p className="text-amber-700 text-sm">
+                      💡 Vui lòng thanh toán <strong>{paymentModal.price.toLocaleString()}đ</strong> cho tài xế. 
+                      Trạng thái sẽ cập nhật khi tài xế xác nhận.
+                    </p>
                   </div>
-                </button>
+                )}
                 <button
-                  onClick={() => handlePayment('ONLINE')}
-                  disabled={paymentLoading}
-                  className="w-full p-4 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center gap-4 transition-colors disabled:opacity-50"
-                >
-                  <span className="text-3xl">💳</span>
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-800">Online</p>
-                    <p className="text-sm text-gray-500">Thanh toán qua ví điện tử</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setPaymentModal(null)}
-                  className="w-full p-3 text-gray-500 hover:text-gray-700 transition-colors"
+                  onClick={closePaymentModal}
+                  className="w-full py-3 bg-indigo-500 text-white rounded-xl font-medium hover:bg-indigo-600 transition-colors"
                 >
                   Đóng
                 </button>
               </div>
-            </div>
+            ) : (
+              // Form chọn phương thức
+              <>
+                <div className="p-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-center">
+                  <span className="text-5xl block mb-2">💳</span>
+                  <h3 className="text-2xl font-bold">Thanh toán</h3>
+                </div>
+                <div className="p-6">
+                  <div className="text-center mb-6">
+                    <p className="text-gray-500 mb-1">Số tiền cần thanh toán</p>
+                    <p className="text-4xl font-bold text-gray-800">{paymentModal.price.toLocaleString()}đ</p>
+                  </div>
+                  
+                  {paymentModal.paymentStatus === 'CHO_XAC_NHAN' ? (
+                    <div className="text-center">
+                      <div className="bg-amber-50 p-4 rounded-xl mb-4">
+                        <span className="text-4xl block mb-2">⏳</span>
+                        <p className="text-amber-700 font-medium">Đang chờ tài xế xác nhận</p>
+                        <p className="text-amber-600 text-sm mt-1">
+                          Bạn đã chọn thanh toán tiền mặt. Vui lòng thanh toán cho tài xế.
+                        </p>
+                      </div>
+                      <button
+                        onClick={closePaymentModal}
+                        className="w-full py-3 text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        Đóng
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => handlePayment('TIEN_MAT')}
+                        disabled={paymentLoading}
+                        className="w-full p-4 bg-amber-50 hover:bg-amber-100 rounded-xl flex items-center gap-4 transition-colors disabled:opacity-50"
+                      >
+                        <span className="text-3xl">💵</span>
+                        <div className="text-left">
+                          <p className="font-semibold text-gray-800">Tiền mặt</p>
+                          <p className="text-sm text-gray-500">Thanh toán trực tiếp cho tài xế</p>
+                        </div>
+                        {paymentLoading && <div className="ml-auto w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>}
+                      </button>
+                      <button
+                        onClick={() => handlePayment('ONLINE')}
+                        disabled={paymentLoading}
+                        className="w-full p-4 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center gap-4 transition-colors disabled:opacity-50"
+                      >
+                        <span className="text-3xl">💳</span>
+                        <div className="text-left">
+                          <p className="font-semibold text-gray-800">Online</p>
+                          <p className="text-sm text-gray-500">Thanh toán qua ví điện tử</p>
+                        </div>
+                        {paymentLoading && <div className="ml-auto w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>}
+                      </button>
+                      <button
+                        onClick={closePaymentModal}
+                        className="w-full p-3 text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        Đóng
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

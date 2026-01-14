@@ -53,8 +53,16 @@ export default function GoogleMap({
 
     const initMap = () => {
       if (!window.google?.maps) {
-        setTimeout(initMap, 500);
-        return;
+        // Đợi event từ callback
+        const handleReady = () => initMap();
+        window.addEventListener('google-maps-ready', handleReady, { once: true });
+        
+        // Fallback: thử lại sau 1s
+        const timeout = setTimeout(initMap, 1000);
+        return () => {
+          window.removeEventListener('google-maps-ready', handleReady);
+          clearTimeout(timeout);
+        };
       }
 
       try {
@@ -64,24 +72,31 @@ export default function GoogleMap({
           center: pickup || defaultCenter,
           zoom: 14,
           disableDefaultUI: true,
-          zoomControl: true,
+          zoomControl: false,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
           rotateControl: false,
           scaleControl: true,
           panControl: false,
-          gestureHandling: 'greedy'
+          gestureHandling: 'greedy',
+          styles: [
+            {
+              featureType: 'poi',
+              elementType: 'labels',
+              stylers: [{ visibility: 'off' }]
+            }
+          ]
         });
 
         directionsServiceRef.current = new window.google.maps.DirectionsService();
         
         directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
-          suppressMarkers: false,
+          suppressMarkers: true,
           polylineOptions: {
             strokeColor: '#4F46E5',
-            strokeWeight: 5,
-            strokeOpacity: 0.8
+            strokeWeight: 6,
+            strokeOpacity: 0.9
           }
         });
         
@@ -94,7 +109,12 @@ export default function GoogleMap({
       }
     };
 
-    initMap();
+    // Kiểm tra nếu đã ready
+    if (window.googleMapsReady || window.google?.maps) {
+      initMap();
+    } else {
+      window.addEventListener('google-maps-ready', initMap, { once: true });
+    }
 
     return () => {
       if (directionsRendererRef.current) {
@@ -119,11 +139,17 @@ export default function GoogleMap({
 
     // Nếu có cả pickup và dropoff, vẽ đường đi
     if (showRoute && pickup && dropoff && directionsServiceRef.current) {
+      console.log('Requesting directions from', pickup, 'to', dropoff);
+      
       directionsServiceRef.current.route({
-        origin: { lat: pickup.lat, lng: pickup.lng },
-        destination: { lat: dropoff.lat, lng: dropoff.lng },
-        travelMode: window.google.maps.TravelMode.DRIVING
+        origin: new window.google.maps.LatLng(pickup.lat, pickup.lng),
+        destination: new window.google.maps.LatLng(dropoff.lat, dropoff.lng),
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: false,
+        optimizeWaypoints: true
       }, (result, status) => {
+        console.log('Directions status:', status);
+        
         if (status === 'OK' && directionsRendererRef.current) {
           directionsRendererRef.current.setDirections(result);
           
@@ -137,47 +163,38 @@ export default function GoogleMap({
             });
           }
 
-          // Thêm driver marker nếu có
-          if (driverLocation) {
-            const driverMarker = new window.google.maps.Marker({
-              position: { lat: driverLocation.lat, lng: driverLocation.lng },
-              map: mapInstanceRef.current,
-              icon: {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 12,
-                fillColor: '#3B82F6',
-                fillOpacity: 1,
-                strokeColor: '#ffffff',
-                strokeWeight: 3
-              },
-              title: 'Tài xế',
-              zIndex: 200
-            });
-            markersRef.current.push(driverMarker);
-          }
+          // Thêm custom markers
+          addCustomMarkers();
         } else {
+          console.error('Directions request failed:', status);
           // Fallback: hiển thị markers nếu không vẽ được route
-          addMarkers();
+          addCustomMarkers();
+          fitBoundsToMarkers();
         }
       });
     } else {
       // Chỉ hiển thị markers
-      addMarkers();
+      addCustomMarkers();
+      fitBoundsToMarkers();
     }
 
-    function addMarkers() {
+    function addCustomMarkers() {
       if (pickup) {
         const pickupMarker = new window.google.maps.Marker({
           position: { lat: pickup.lat, lng: pickup.lng },
           map: mapInstanceRef.current,
           icon: {
-            url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
-            scaledSize: new window.google.maps.Size(40, 40)
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: '#22C55E',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
           },
-          title: 'Điểm đón'
+          title: 'Điểm đón',
+          zIndex: 100
         });
         markersRef.current.push(pickupMarker);
-        mapInstanceRef.current.setCenter({ lat: pickup.lat, lng: pickup.lng });
       }
 
       if (dropoff) {
@@ -185,10 +202,15 @@ export default function GoogleMap({
           position: { lat: dropoff.lat, lng: dropoff.lng },
           map: mapInstanceRef.current,
           icon: {
-            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-            scaledSize: new window.google.maps.Size(40, 40)
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: '#EF4444',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
           },
-          title: 'Điểm đến'
+          title: 'Điểm đến',
+          zIndex: 100
         });
         markersRef.current.push(dropoffMarker);
       }
@@ -198,27 +220,34 @@ export default function GoogleMap({
           position: { lat: driverLocation.lat, lng: driverLocation.lng },
           map: mapInstanceRef.current,
           icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 12,
+            path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
             fillColor: '#3B82F6',
             fillOpacity: 1,
             strokeColor: '#ffffff',
-            strokeWeight: 3
+            strokeWeight: 2,
+            scale: 2,
+            anchor: new window.google.maps.Point(12, 24)
           },
-          title: 'Tài xế'
+          title: 'Tài xế',
+          zIndex: 200
         });
         markersRef.current.push(driverMarker);
       }
+    }
 
-      // Fit bounds
-      if (pickup && dropoff) {
+    function fitBoundsToMarkers() {
+      if (pickup || dropoff) {
         const bounds = new window.google.maps.LatLngBounds();
-        bounds.extend({ lat: pickup.lat, lng: pickup.lng });
-        bounds.extend({ lat: dropoff.lat, lng: dropoff.lng });
-        if (driverLocation) {
-          bounds.extend({ lat: driverLocation.lat, lng: driverLocation.lng });
+        if (pickup) bounds.extend({ lat: pickup.lat, lng: pickup.lng });
+        if (dropoff) bounds.extend({ lat: dropoff.lat, lng: dropoff.lng });
+        if (driverLocation) bounds.extend({ lat: driverLocation.lat, lng: driverLocation.lng });
+        
+        if (pickup && dropoff) {
+          mapInstanceRef.current.fitBounds(bounds, 60);
+        } else if (pickup) {
+          mapInstanceRef.current.setCenter({ lat: pickup.lat, lng: pickup.lng });
+          mapInstanceRef.current.setZoom(15);
         }
-        mapInstanceRef.current.fitBounds(bounds, 60);
       }
     }
   }, [pickup, dropoff, driverLocation, showRoute, mapReady, onRouteCalculated]);

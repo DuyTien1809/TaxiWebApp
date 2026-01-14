@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createBooking } from '../../services/api';
-import MapPicker from '../../components/MapPicker';
-import GoogleMap from '../../components/GoogleMap';
+import LocationPicker from '../../components/LocationPicker';
+import LeafletMap from '../../components/LeafletMap';
 
 const PRICE_PER_KM = 10000;
 
@@ -13,6 +13,7 @@ export default function CreateBooking() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [selectMode, setSelectMode] = useState(null); // 'pickup' | 'dropoff' | null
   const navigate = useNavigate();
 
   const calculatePrice = (distanceMeters) => {
@@ -25,6 +26,15 @@ export default function CreateBooking() {
       ...info,
       price: calculatePrice(info.distance)
     });
+  };
+
+  const handleMapClick = (location, mode) => {
+    if (mode === 'pickup') {
+      setPickup(location);
+    } else if (mode === 'dropoff') {
+      setDropoff(location);
+    }
+    setSelectMode(null);
   };
 
   const handleSubmit = async () => {
@@ -84,19 +94,37 @@ export default function CreateBooking() {
           {/* Form Section */}
           <div className="lg:col-span-2 space-y-4">
             {/* Pickup */}
-            <div className="bg-white rounded-2xl p-5 shadow-lg card-hover animate-fade-in" style={{animationDelay: '0.1s'}}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <div className="bg-white rounded-2xl p-5 shadow-lg card-hover animate-fade-in relative z-30" style={{animationDelay: '0.1s'}}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">Điểm đón</p>
+                    <p className="text-xs text-gray-400">Bạn đang ở đâu?</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-800">Điểm đón</p>
-                  <p className="text-xs text-gray-400">Bạn đang ở đâu?</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectMode(selectMode === 'pickup' ? null : 'pickup')}
+                  className={`p-2 rounded-lg transition-all ${
+                    selectMode === 'pickup' 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-green-100'
+                  }`}
+                  title="Chọn trên bản đồ"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
               </div>
-              <MapPicker
+              <LocationPicker
                 placeholder="Tìm địa chỉ đón..."
                 onSelect={setPickup}
+                value={pickup}
               />
               {pickup && (
                 <p className="mt-2 text-sm text-gray-500 truncate">📍 {pickup.address}</p>
@@ -104,19 +132,37 @@ export default function CreateBooking() {
             </div>
 
             {/* Dropoff */}
-            <div className="bg-white rounded-2xl p-5 shadow-lg card-hover animate-fade-in" style={{animationDelay: '0.2s'}}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <div className="bg-white rounded-2xl p-5 shadow-lg card-hover animate-fade-in relative z-20" style={{animationDelay: '0.2s'}}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">Điểm đến</p>
+                    <p className="text-xs text-gray-400">Bạn muốn đến đâu?</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-800">Điểm đến</p>
-                  <p className="text-xs text-gray-400">Bạn muốn đến đâu?</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectMode(selectMode === 'dropoff' ? null : 'dropoff')}
+                  className={`p-2 rounded-lg transition-all ${
+                    selectMode === 'dropoff' 
+                      ? 'bg-red-500 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-red-100'
+                  }`}
+                  title="Chọn trên bản đồ"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
               </div>
-              <MapPicker
+              <LocationPicker
                 placeholder="Tìm địa chỉ đến..."
                 onSelect={setDropoff}
+                value={dropoff}
               />
               {dropoff && (
                 <p className="mt-2 text-sm text-gray-500 truncate">🎯 {dropoff.address}</p>
@@ -175,14 +221,16 @@ export default function CreateBooking() {
             </button>
           </div>
 
-          {/* Map Section - Tăng kích thước */}
-          <div className="lg:col-span-3 animate-fade-in" style={{animationDelay: '0.2s'}}>
+          {/* Map Section */}
+          <div className="lg:col-span-3 animate-fade-in relative z-10" style={{animationDelay: '0.2s'}}>
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden h-[550px] lg:h-[650px]">
-              <GoogleMap
+              <LeafletMap
                 pickup={pickup}
                 dropoff={dropoff}
                 showRoute={pickup && dropoff}
                 onRouteCalculated={handleRouteCalculated}
+                onMapClick={handleMapClick}
+                selectMode={selectMode}
                 height="100%"
               />
             </div>

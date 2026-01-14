@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getBookings, acceptBooking, completeBooking, setDriverFree, setDriverBusy } from '../../services/api';
 import api from '../../services/api';
-import GoogleMap from '../../components/GoogleMap';
+import LeafletMap from '../../components/LeafletMap';
 
 const statusConfig = {
   MOI_TAO: { text: 'Chờ nhận', color: 'bg-amber-100 text-amber-700' },
@@ -18,6 +18,7 @@ export default function DriverDashboard() {
   const [activeBooking, setActiveBooking] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(null);
   const user = JSON.parse(localStorage.getItem('user'));
 
   const fetchBookings = async () => {
@@ -100,6 +101,19 @@ export default function DriverDashboard() {
     }
   };
 
+  const handleConfirmCashPayment = async (bookingId) => {
+    setConfirmingPayment(bookingId);
+    try {
+      await api.put(`/payments/${bookingId}/xac-nhan-tien-mat`);
+      alert('Xác nhận nhận tiền thành công!');
+      fetchBookings();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Xác nhận thất bại');
+    } finally {
+      setConfirmingPayment(null);
+    }
+  };
+
   const toggleStatus = async () => {
     try {
       if (driverStatus === 'RANH') {
@@ -126,6 +140,14 @@ export default function DriverDashboard() {
   }
 
   const pendingBookings = bookings.filter(b => b.status === 'MOI_TAO');
+  
+  // Các chuyến cần xác nhận tiền mặt (của tài xế này)
+  const pendingCashPayments = bookings.filter(b => 
+    b.status === 'HOAN_THANH' && 
+    b.paymentStatus === 'CHO_XAC_NHAN' &&
+    b.paymentMethod === 'TIEN_MAT' &&
+    (b.driverId?._id === user.id || b.driverId === user.id)
+  );
 
   // Active Trip View
   if (activeBooking) {
@@ -133,7 +155,7 @@ export default function DriverDashboard() {
       <div className="min-h-[calc(100vh-64px)] bg-gradient-to-br from-slate-900 to-slate-800">
         {/* Map Full Screen - Tăng kích thước */}
         <div className="relative h-[55vh]">
-          <GoogleMap
+          <LeafletMap
             key={activeBooking._id}
             pickup={activeBooking.pickup}
             dropoff={activeBooking.dropoff}
@@ -308,6 +330,41 @@ export default function DriverDashboard() {
           </div>
         </div>
 
+        {/* Pending Cash Payments */}
+        {pendingCashPayments.length > 0 && (
+          <>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>💵</span> Chờ xác nhận tiền mặt
+            </h2>
+            <div className="space-y-3 mb-6">
+              {pendingCashPayments.map((b) => (
+                <div key={b._id} className="bg-amber-50 border border-amber-200 rounded-2xl p-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-800">{b.customerId?.name}</p>
+                      <p className="text-sm text-gray-500">{b.pickup?.address?.substring(0, 30)}...</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-green-600">{b.price.toLocaleString()}đ</p>
+                      <button
+                        onClick={() => handleConfirmCashPayment(b._id)}
+                        disabled={confirmingPayment === b._id}
+                        className="mt-2 px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {confirmingPayment === b._id ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <>✅ Đã nhận tiền</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Pending Bookings */}
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <span>📋</span> Chuyến chờ nhận
@@ -368,7 +425,7 @@ export default function DriverDashboard() {
 
                   {/* Mini Map - Tăng kích thước */}
                   <div className="hidden md:block h-[250px]">
-                    <GoogleMap
+                    <LeafletMap
                       key={b._id}
                       pickup={b.pickup}
                       dropoff={b.dropoff}

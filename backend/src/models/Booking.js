@@ -29,6 +29,16 @@ const bookingSchema = new mongoose.Schema({
     enum: ['MOI_TAO', 'DA_NHAN', 'DANG_CHAY', 'HOAN_THANH', 'HUY'],
     default: 'MOI_TAO'
   },
+  paymentStatus: {
+    type: String,
+    enum: ['CHUA_THANH_TOAN', 'CHO_XAC_NHAN', 'DA_THANH_TOAN'],
+    default: 'CHUA_THANH_TOAN'
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['TIEN_MAT', 'ONLINE'],
+    default: null
+  },
   driverLocation: {
     lat: { type: Number },
     lng: { type: Number }
