@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getBookings, cancelBooking, createPayment } from '../../services/api';
+import { getBookings, cancelBooking, createPayment, getWallet, linkBankAccount, topUpWallet } from '../../services/api';
 import LeafletMap from '../../components/LeafletMap';
 
 const statusConfig = {
@@ -16,6 +16,16 @@ const paymentStatusConfig = {
   DA_THANH_TOAN: { text: 'Đã thanh toán', color: 'bg-green-100 text-green-700', icon: '✅' },
 };
 
+const paymentMethodConfig = {
+  TIEN_MAT: { text: 'Tiền mặt', icon: '💵' },
+  CHUYEN_KHOAN: { text: 'Chuyển khoản', icon: '🏦' },
+};
+
+const BANKS = [
+  'Vietcombank', 'BIDV', 'Agribank', 'Techcombank', 'VPBank',
+  'MB Bank', 'ACB', 'Sacombank', 'TPBank', 'VIB'
+];
+
 export default function MyTrips() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +33,12 @@ export default function MyTrips() {
   const [paymentModal, setPaymentModal] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentResult, setPaymentResult] = useState(null);
+  const [wallet, setWallet] = useState(null);
+  const [showLinkBank, setShowLinkBank] = useState(false);
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [bankForm, setBankForm] = useState({ bankName: '', accountNumber: '', accountHolder: '' });
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [error, setError] = useState('');
 
   const fetchBookings = async () => {
     try {
@@ -37,8 +53,18 @@ export default function MyTrips() {
     }
   };
 
+  const fetchWallet = async () => {
+    try {
+      const { data } = await getWallet();
+      setWallet(data.wallet);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchWallet();
     const interval = setInterval(fetchBookings, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -53,8 +79,59 @@ export default function MyTrips() {
     }
   };
 
-  const handlePayment = async (method) => {
+  const handleLinkBank = async () => {
+    if (!bankForm.bankName || !bankForm.accountNumber || !bankForm.accountHolder) {
+      setError('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
     setPaymentLoading(true);
+    try {
+      const { data } = await linkBankAccount(bankForm);
+      setWallet(data.wallet);
+      setShowLinkBank(false);
+      setBankForm({ bankName: '', accountNumber: '', accountHolder: '' });
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Liên kết thất bại');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleTopUp = async () => {
+    const amount = parseInt(topUpAmount);
+    if (!amount || amount < 10000) {
+      setError('Số tiền nạp tối thiểu 10,000đ');
+      return;
+    }
+    setPaymentLoading(true);
+    try {
+      const { data } = await topUpWallet({ amount });
+      setWallet(data.wallet);
+      setShowTopUp(false);
+      setTopUpAmount('');
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Nạp tiền thất bại');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handlePayment = async (method) => {
+    if (method === 'CHUYEN_KHOAN') {
+      if (!wallet?.isLinked) {
+        setError('Vui lòng liên kết tài khoản ngân hàng');
+        return;
+      }
+      if (wallet.balance < paymentModal.price) {
+        setError(`Số dư không đủ. Cần ${paymentModal.price.toLocaleString()}đ`);
+        return;
+      }
+    }
+    
+    setPaymentLoading(true);
+    setError('');
     try {
       const { data } = await createPayment({ bookingId: paymentModal._id, method });
       setPaymentResult({
@@ -63,6 +140,7 @@ export default function MyTrips() {
         message: data.message
       });
       fetchBookings();
+      fetchWallet();
     } catch (err) {
       setPaymentResult({
         success: false,
@@ -76,6 +154,9 @@ export default function MyTrips() {
   const closePaymentModal = () => {
     setPaymentModal(null);
     setPaymentResult(null);
+    setShowLinkBank(false);
+    setShowTopUp(false);
+    setError('');
   };
 
   if (loading) {
@@ -171,18 +252,19 @@ export default function MyTrips() {
                         Hủy chuyến
                       </button>
                     )}
-                    {b.status === 'HOAN_THANH' && b.paymentStatus !== 'DA_THANH_TOAN' && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setPaymentModal(b); }}
-                        className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                          b.paymentStatus === 'CHO_XAC_NHAN'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-green-500 text-white hover:bg-green-600'
-                        }`}
-                      >
-                        <span>{b.paymentStatus === 'CHO_XAC_NHAN' ? '⏳' : '💳'}</span>
-                        {b.paymentStatus === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : 'Thanh toán'}
-                      </button>
+                    {/* Show payment method badge */}
+                    {b.paymentMethod && (
+                      <div className={`py-2 px-3 rounded-xl text-xs font-medium flex items-center gap-1 ${
+                        b.paymentMethod === 'CHUYEN_KHOAN' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        <span>{paymentMethodConfig[b.paymentMethod]?.icon}</span>
+                        <span>{paymentMethodConfig[b.paymentMethod]?.text}</span>
+                      </div>
+                    )}
+                    {b.status === 'HOAN_THANH' && b.paymentStatus === 'CHO_XAC_NHAN' && (
+                      <div className="flex-1 py-2 px-4 bg-amber-100 text-amber-700 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
+                        <span>⏳</span> Chờ tài xế xác nhận
+                      </div>
                     )}
                     {b.status === 'HOAN_THANH' && b.paymentStatus === 'DA_THANH_TOAN' && (
                       <div className="flex-1 py-2 px-4 bg-green-100 text-green-700 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
@@ -254,7 +336,7 @@ export default function MyTrips() {
       {/* Payment Modal */}
       {paymentModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden animate-fade-in max-h-[90vh] overflow-y-auto">
             {paymentResult ? (
               // Kết quả thanh toán
               <div className="p-6 text-center">
@@ -296,6 +378,74 @@ export default function MyTrips() {
                     <p className="text-gray-500 mb-1">Số tiền cần thanh toán</p>
                     <p className="text-4xl font-bold text-gray-800">{paymentModal.price.toLocaleString()}đ</p>
                   </div>
+
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                      ⚠️ {error}
+                    </div>
+                  )}
+
+                  {/* Link Bank Form */}
+                  {showLinkBank && (
+                    <div className="mb-4 p-4 bg-blue-50 rounded-xl space-y-3">
+                      <h4 className="font-semibold text-gray-800">🏦 Liên kết tài khoản</h4>
+                      <select
+                        value={bankForm.bankName}
+                        onChange={(e) => setBankForm({...bankForm, bankName: e.target.value})}
+                        className="w-full p-3 border rounded-xl"
+                      >
+                        <option value="">Chọn ngân hàng</option>
+                        {BANKS.map(bank => <option key={bank} value={bank}>{bank}</option>)}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Số tài khoản"
+                        value={bankForm.accountNumber}
+                        onChange={(e) => setBankForm({...bankForm, accountNumber: e.target.value})}
+                        className="w-full p-3 border rounded-xl"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Tên chủ tài khoản"
+                        value={bankForm.accountHolder}
+                        onChange={(e) => setBankForm({...bankForm, accountHolder: e.target.value})}
+                        className="w-full p-3 border rounded-xl"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => setShowLinkBank(false)} className="flex-1 py-2 bg-gray-100 rounded-xl">Hủy</button>
+                        <button onClick={handleLinkBank} disabled={paymentLoading} className="flex-1 py-2 bg-blue-500 text-white rounded-xl disabled:opacity-50">
+                          {paymentLoading ? 'Đang xử lý...' : 'Liên kết'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Up Form */}
+                  {showTopUp && (
+                    <div className="mb-4 p-4 bg-green-50 rounded-xl space-y-3">
+                      <h4 className="font-semibold text-gray-800">💰 Nạp tiền</h4>
+                      <input
+                        type="number"
+                        placeholder="Số tiền nạp"
+                        value={topUpAmount}
+                        onChange={(e) => setTopUpAmount(e.target.value)}
+                        className="w-full p-3 border rounded-xl"
+                      />
+                      <div className="flex gap-2 flex-wrap">
+                        {[50000, 100000, 200000].map(amt => (
+                          <button key={amt} onClick={() => setTopUpAmount(amt.toString())} className="px-3 py-1 bg-white border rounded-lg text-sm">
+                            {amt.toLocaleString()}đ
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setShowTopUp(false)} className="flex-1 py-2 bg-gray-100 rounded-xl">Hủy</button>
+                        <button onClick={handleTopUp} disabled={paymentLoading} className="flex-1 py-2 bg-green-500 text-white rounded-xl disabled:opacity-50">
+                          {paymentLoading ? 'Đang xử lý...' : 'Nạp tiền'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   
                   {paymentModal.paymentStatus === 'CHO_XAC_NHAN' ? (
                     <div className="text-center">
@@ -313,7 +463,7 @@ export default function MyTrips() {
                         Đóng
                       </button>
                     </div>
-                  ) : (
+                  ) : !showLinkBank && !showTopUp && (
                     <div className="space-y-3">
                       <button
                         onClick={() => handlePayment('TIEN_MAT')}
@@ -325,20 +475,42 @@ export default function MyTrips() {
                           <p className="font-semibold text-gray-800">Tiền mặt</p>
                           <p className="text-sm text-gray-500">Thanh toán trực tiếp cho tài xế</p>
                         </div>
-                        {paymentLoading && <div className="ml-auto w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>}
                       </button>
-                      <button
-                        onClick={() => handlePayment('ONLINE')}
-                        disabled={paymentLoading}
-                        className="w-full p-4 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center gap-4 transition-colors disabled:opacity-50"
-                      >
-                        <span className="text-3xl">💳</span>
-                        <div className="text-left">
-                          <p className="font-semibold text-gray-800">Online</p>
-                          <p className="text-sm text-gray-500">Thanh toán qua ví điện tử</p>
+                      
+                      <div className="p-4 bg-blue-50 rounded-xl">
+                        <div className="flex items-center gap-4 mb-2">
+                          <span className="text-3xl">🏦</span>
+                          <div className="text-left flex-1">
+                            <p className="font-semibold text-gray-800">Chuyển khoản</p>
+                            <p className="text-sm text-gray-500">
+                              {wallet?.isLinked ? `Số dư: ${wallet.balance.toLocaleString()}đ` : 'Chưa liên kết'}
+                            </p>
+                          </div>
                         </div>
-                        {paymentLoading && <div className="ml-auto w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>}
-                      </button>
+                        {wallet?.isLinked ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-gray-600">{wallet.bankAccount.bankName} - {wallet.bankAccount.accountNumber}</p>
+                            <div className="flex gap-2">
+                              <button onClick={() => setShowTopUp(true)} className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-lg">+ Nạp tiền</button>
+                              <button 
+                                onClick={() => handlePayment('CHUYEN_KHOAN')} 
+                                disabled={paymentLoading || wallet.balance < paymentModal.price}
+                                className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm disabled:opacity-50"
+                              >
+                                {paymentLoading ? 'Đang xử lý...' : 'Thanh toán'}
+                              </button>
+                            </div>
+                            {wallet.balance < paymentModal.price && (
+                              <p className="text-xs text-red-500">⚠️ Số dư không đủ</p>
+                            )}
+                          </div>
+                        ) : (
+                          <button onClick={() => setShowLinkBank(true)} className="w-full py-2 bg-blue-100 text-blue-700 rounded-lg text-sm">
+                            + Liên kết tài khoản
+                          </button>
+                        )}
+                      </div>
+                      
                       <button
                         onClick={closePaymentModal}
                         className="w-full p-3 text-gray-500 hover:text-gray-700 transition-colors"

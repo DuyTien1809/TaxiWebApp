@@ -1,7 +1,8 @@
 const Payment = require('../models/Payment');
 const Booking = require('../models/Booking');
+const Wallet = require('../models/Wallet');
 
-// Customer tạo thanh toán
+// Customer tạo thanh toán (cho trường hợp thanh toán sau khi hoàn thành)
 exports.createPayment = async (req, res) => {
   try {
     const { bookingId, method } = req.body;
@@ -30,40 +31,60 @@ exports.createPayment = async (req, res) => {
       return res.status(400).json({ message: 'Booking này đã có payment thành công' });
     }
 
+    // Xử lý thanh toán chuyển khoản
+    if (method === 'CHUYEN_KHOAN') {
+      const wallet = await Wallet.findOne({ userId: req.user._id });
+      
+      if (!wallet || !wallet.isLinked) {
+        return res.status(400).json({ 
+          message: 'Vui lòng liên kết tài khoản ngân hàng',
+          code: 'WALLET_NOT_LINKED'
+        });
+      }
+      
+      if (wallet.balance < booking.price) {
+        return res.status(400).json({ 
+          message: `Số dư ví không đủ. Số dư hiện tại: ${wallet.balance.toLocaleString()}đ`,
+          code: 'INSUFFICIENT_BALANCE'
+        });
+      }
+      
+      // Trừ tiền từ ví
+      wallet.balance -= booking.price;
+      wallet.transactions.push({
+        type: 'THANH_TOAN',
+        amount: -booking.price,
+        description: `Thanh toán chuyến xe #${booking._id.toString().slice(-6)}`,
+        bookingId: booking._id
+      });
+      await wallet.save();
+    }
+
     // Tạo hoặc cập nhật payment
     if (!payment) {
       payment = await Payment.create({
         bookingId,
         amount: booking.price,
         method,
-        status: 'CHO_THANH_TOAN'
+        status: method === 'CHUYEN_KHOAN' ? 'DA_THANH_TOAN' : 'CHO_THANH_TOAN',
+        paidAt: method === 'CHUYEN_KHOAN' ? new Date() : null
       });
     } else {
       payment.method = method;
-      payment.status = 'CHO_THANH_TOAN';
+      payment.status = method === 'CHUYEN_KHOAN' ? 'DA_THANH_TOAN' : 'CHO_THANH_TOAN';
+      payment.paidAt = method === 'CHUYEN_KHOAN' ? new Date() : null;
+      await payment.save();
     }
 
-    // Xử lý theo phương thức thanh toán
-    if (method === 'TIEN_MAT') {
-      // Tiền mặt: chờ tài xế xác nhận
-      payment.status = 'CHO_THANH_TOAN';
-      booking.paymentStatus = 'CHO_XAC_NHAN';
-      booking.paymentMethod = 'TIEN_MAT';
-    } else {
-      // Online: giả lập thanh toán thành công (trong thực tế sẽ redirect đến cổng thanh toán)
-      payment.status = 'DA_THANH_TOAN';
-      payment.paidAt = new Date();
-      booking.paymentStatus = 'DA_THANH_TOAN';
-      booking.paymentMethod = 'ONLINE';
-    }
-    
-    await payment.save();
+    // Cập nhật booking
+    booking.paymentMethod = method;
+    booking.paymentStatus = method === 'CHUYEN_KHOAN' ? 'DA_THANH_TOAN' : 'CHO_XAC_NHAN';
     await booking.save();
 
     res.status(201).json({ 
       message: method === 'TIEN_MAT' 
         ? 'Vui lòng thanh toán tiền mặt cho tài xế' 
-        : 'Thanh toán online thành công',
+        : 'Thanh toán chuyển khoản thành công',
       payment,
       booking
     });

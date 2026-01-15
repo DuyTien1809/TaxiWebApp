@@ -9,6 +9,11 @@ const userRoutes = require('./routes/userRoutes');
 const driverRoutes = require('./routes/driverRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const walletRoutes = require('./routes/walletRoutes');
+const driverEarningRoutes = require('./routes/driverEarningRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const ratingRoutes = require('./routes/ratingRoutes');
+const otpRoutes = require('./routes/otpRoutes');
 
 const app = express();
 
@@ -21,10 +26,15 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/otp', otpRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/driver-earnings', driverEarningRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 // Health check
 app.get('/', (req, res) => {

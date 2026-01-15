@@ -25,9 +25,13 @@ exports.getUser = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User không tồn tại' });
+    }
     res.status(200).json({ user });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('getProfile error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -35,15 +39,26 @@ exports.updateProfile = async (req, res) => {
   try {
     const { name, email, phone, avatar, birthday, address } = req.body;
     
+    const updateData = { name, phone };
+    if (email) updateData.email = email;
+    if (avatar) updateData.avatar = avatar;
+    if (birthday) updateData.birthday = birthday;
+    if (address) updateData.address = address;
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name, email, phone, avatar, birthday, address },
+      updateData,
       { new: true, runValidators: true }
     );
     
+    if (!user) {
+      return res.status(404).json({ message: 'User không tồn tại' });
+    }
+    
     res.status(200).json({ message: 'Cập nhật thông tin thành công', user });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('updateProfile error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -97,6 +112,129 @@ exports.setDriverBusy = async (req, res) => {
     driver.driverStatus = 'BAN';
     await driver.save();
     res.status(200).json({ message: 'Cập nhật trạng thái BẬN thành công', driver });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Cập nhật vị trí tài xế
+exports.updateDriverLocation = async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    
+    if (lat === undefined || lng === undefined) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp vị trí' });
+    }
+    
+    if (req.user.role !== 'DRIVER') {
+      return res.status(403).json({ message: 'Chỉ tài xế mới có thể cập nhật vị trí' });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        currentLocation: { 
+          lat, 
+          lng, 
+          updatedAt: new Date() 
+        } 
+      },
+      { new: true }
+    );
+    
+    res.status(200).json({ 
+      message: 'Cập nhật vị trí thành công', 
+      currentLocation: user.currentLocation 
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Lấy vị trí tài xế
+exports.getDriverLocation = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    res.status(200).json({ currentLocation: user.currentLocation });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// ========== ĐĂNG KÝ TÀI XẾ ==========
+
+// Tài xế đồng ý nội quy
+exports.agreeToRules = async (req, res) => {
+  try {
+    if (req.user.role !== 'DRIVER') {
+      return res.status(403).json({ message: 'Chỉ tài xế mới có thể thực hiện' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        agreedToRules: true,
+        agreedToRulesAt: new Date()
+      },
+      { new: true }
+    );
+
+    res.status(200).json({ 
+      message: 'Đã đồng ý nội quy',
+      user: {
+        id: user._id,
+        agreedToRules: user.agreedToRules,
+        driverApprovalStatus: user.driverApprovalStatus
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Tài xế cập nhật hồ sơ
+exports.updateDriverProfile = async (req, res) => {
+  try {
+    if (req.user.role !== 'DRIVER') {
+      return res.status(403).json({ message: 'Chỉ tài xế mới có thể thực hiện' });
+    }
+
+    const { driverInfo, birthday, address } = req.body;
+
+    const updateData = {
+      driverInfo,
+      driverApprovalStatus: 'PENDING' // Reset về pending khi cập nhật
+    };
+    
+    if (birthday) updateData.birthday = birthday;
+    if (address) updateData.address = address;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      updateData,
+      { new: true }
+    );
+
+    res.status(200).json({ 
+      message: 'Cập nhật hồ sơ thành công. Vui lòng chờ admin duyệt.',
+      user
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Lấy thông tin hồ sơ tài xế
+exports.getDriverProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    res.status(200).json({ 
+      user: {
+        ...user.toObject(),
+        password: undefined
+      }
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

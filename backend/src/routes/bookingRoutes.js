@@ -11,5 +11,6 @@ router.put('/:id/bat-dau', protect, restrictTo('DRIVER'), bookingController.star
 router.put('/:id/vi-tri', protect, restrictTo('DRIVER'), bookingController.updateDriverLocation);
 router.put('/:id/hoan-thanh', protect, restrictTo('DRIVER'), bookingController.completeBooking);
 router.put('/:id/huy', protect, bookingController.cancelBooking);
+router.put('/:id/tu-choi', protect, restrictTo('DRIVER'), bookingController.rejectBooking);
 
 module.exports = router;

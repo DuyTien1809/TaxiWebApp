@@ -7,6 +7,7 @@ export default function Profile({ user, setUser }) {
   const [activeTab, setActiveTab] = useState('info');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [showToast, setShowToast] = useState(false);
   
   const [profile, setProfile] = useState({
     name: '',
@@ -54,21 +55,29 @@ export default function Profile({ user, setUser }) {
     }
   };
 
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+      setTimeout(() => setMessage({ type: '', text: '' }), 300);
+    }, 3000);
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage({ type: '', text: '' });
     
     try {
-      const res = await api.put('/users/profile', profile);
-      setMessage({ type: 'success', text: 'Cập nhật thông tin thành công!' });
+      await api.put('/users/profile', profile);
+      showMessage('success', 'Cập nhật thông tin thành công!');
       
       // Update local storage
       const updatedUser = { ...user, name: profile.name };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Có lỗi xảy ra' });
+      showMessage('error', error.response?.data?.message || 'Có lỗi xảy ra');
     } finally {
       setLoading(false);
     }
@@ -77,10 +86,9 @@ export default function Profile({ user, setUser }) {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage({ type: '', text: '' });
     
     if (passwords.newPassword !== passwords.confirmPassword) {
-      setMessage({ type: 'error', text: 'Mật khẩu xác nhận không khớp' });
+      showMessage('error', 'Mật khẩu xác nhận không khớp');
       setLoading(false);
       return;
     }
@@ -90,10 +98,10 @@ export default function Profile({ user, setUser }) {
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword
       });
-      setMessage({ type: 'success', text: 'Đổi mật khẩu thành công!' });
+      showMessage('success', 'Đổi mật khẩu thành công!');
       setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Có lỗi xảy ra' });
+      showMessage('error', error.response?.data?.message || 'Có lỗi xảy ra');
     } finally {
       setLoading(false);
     }
@@ -166,15 +174,6 @@ export default function Profile({ user, setUser }) {
             🔐 Đổi mật khẩu
           </button>
         </div>
-
-        {/* Message */}
-        {message.text && (
-          <div className={`mb-6 p-4 rounded-xl ${
-            message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}>
-            {message.text}
-          </div>
-        )}
 
         {/* Content */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
@@ -350,6 +349,28 @@ export default function Profile({ user, setUser }) {
           ← Quay lại
         </button>
       </div>
+
+      {/* Toast Notification */}
+      {message.text && (
+        <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ${showToast ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
+          <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl ${
+            message.type === 'success' 
+              ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' 
+              : 'bg-gradient-to-r from-red-500 to-rose-600 text-white'
+          }`}>
+            <span className="text-2xl">{message.type === 'success' ? '✅' : '❌'}</span>
+            <p className="font-medium">{message.text}</p>
+            <button 
+              onClick={() => setShowToast(false)} 
+              className="ml-2 p-1 hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

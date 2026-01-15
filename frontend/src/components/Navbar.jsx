@@ -1,9 +1,28 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getPendingRatingsCount } from '../services/api';
 
 export default function Navbar({ user, setUser }) {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [pendingRatings, setPendingRatings] = useState(0);
+
+  useEffect(() => {
+    if (user && user.role === 'CUSTOMER') {
+      fetchPendingRatings();
+      const interval = setInterval(fetchPendingRatings, 30000); // Check every 30s
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const fetchPendingRatings = async () => {
+    try {
+      const { data } = await getPendingRatingsCount();
+      setPendingRatings(data.count);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -34,10 +53,15 @@ export default function Navbar({ user, setUser }) {
                   <>
                     <NavLink to="/customer/booking" icon="🚗" text="Đặt xe" />
                     <NavLink to="/customer/trips" icon="📋" text="Chuyến đi" />
+                    <NavLink to="/customer/ratings" icon="⭐" text="Đánh giá" badge={pendingRatings} />
+                    <NavLink to="/customer/wallet" icon="💰" text="Ví" />
                   </>
                 )}
                 {user.role === 'DRIVER' && (
-                  <NavLink to="/driver" icon="🛣️" text="Dashboard" />
+                  <>
+                    <NavLink to="/driver" icon="🛣️" text="Dashboard" />
+                    <NavLink to="/driver/wallet" icon="💰" text="Ví" />
+                  </>
                 )}
                 {user.role === 'ADMIN' && (
                   <NavLink to="/admin" icon="📊" text="Quản lý" />
@@ -94,10 +118,15 @@ export default function Navbar({ user, setUser }) {
                   <>
                     <MobileNavLink to="/customer/booking" icon="🚗" text="Đặt xe" onClick={() => setIsMenuOpen(false)} />
                     <MobileNavLink to="/customer/trips" icon="📋" text="Chuyến đi" onClick={() => setIsMenuOpen(false)} />
+                    <MobileNavLink to="/customer/ratings" icon="⭐" text="Đánh giá" badge={pendingRatings} onClick={() => setIsMenuOpen(false)} />
+                    <MobileNavLink to="/customer/wallet" icon="💰" text="Ví của tôi" onClick={() => setIsMenuOpen(false)} />
                   </>
                 )}
                 {user.role === 'DRIVER' && (
-                  <MobileNavLink to="/driver" icon="🛣️" text="Dashboard" onClick={() => setIsMenuOpen(false)} />
+                  <>
+                    <MobileNavLink to="/driver" icon="🛣️" text="Dashboard" onClick={() => setIsMenuOpen(false)} />
+                    <MobileNavLink to="/driver/wallet" icon="💰" text="Ví của tôi" onClick={() => setIsMenuOpen(false)} />
+                  </>
                 )}
                 {user.role === 'ADMIN' && (
                   <MobileNavLink to="/admin" icon="📊" text="Quản lý" onClick={() => setIsMenuOpen(false)} />
@@ -123,27 +152,37 @@ export default function Navbar({ user, setUser }) {
   );
 }
 
-function NavLink({ to, icon, text }) {
+function NavLink({ to, icon, text, badge }) {
   return (
     <Link
       to={to}
-      className="px-4 py-2 text-white/90 hover:text-white hover:bg-white/10 rounded-xl font-medium transition-all duration-300 flex items-center gap-2"
+      className="px-4 py-2 text-white/90 hover:text-white hover:bg-white/10 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 relative"
     >
       <span>{icon}</span>
       <span>{text}</span>
+      {badge > 0 && (
+        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
 
-function MobileNavLink({ to, icon, text, onClick }) {
+function MobileNavLink({ to, icon, text, onClick, badge }) {
   return (
     <Link
       to={to}
       onClick={onClick}
-      className="block px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3"
+      className="block px-4 py-3 text-white/90 hover:bg-white/10 rounded-xl transition-colors flex items-center gap-3 relative"
     >
       <span>{icon}</span>
       <span>{text}</span>
+      {badge > 0 && (
+        <span className="ml-auto w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }

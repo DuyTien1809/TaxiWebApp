@@ -36,13 +36,24 @@ const bookingSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['TIEN_MAT', 'ONLINE'],
+    enum: ['TIEN_MAT', 'CHUYEN_KHOAN'],
     default: null
   },
   driverLocation: {
     lat: { type: Number },
     lng: { type: Number }
-  }
+  },
+  // Đánh dấu khách đã đánh giá tài xế
+  customerRated: {
+    type: Boolean,
+    default: false
+  },
+  // Lịch sử tài xế đã từ chối chuyến này
+  rejectedDrivers: [{
+    driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reason: { type: String, default: '' },
+    rejectedAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);

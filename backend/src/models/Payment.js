@@ -13,7 +13,7 @@ const paymentSchema = new mongoose.Schema({
   },
   method: {
     type: String,
-    enum: ['TIEN_MAT', 'ONLINE'],
+    enum: ['TIEN_MAT', 'CHUYEN_KHOAN'],
     required: [true, 'Payment method is required']
   },
   status: {

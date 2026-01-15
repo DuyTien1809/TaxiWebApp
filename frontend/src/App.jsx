@@ -3,11 +3,18 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Profile from './pages/Profile';
 import CreateBooking from './pages/customer/CreateBooking';
 import MyTrips from './pages/customer/MyTrips';
+import MyWallet from './pages/customer/MyWallet';
+import MyRatings from './pages/customer/MyRatings';
 import DriverDashboard from './pages/driver/DriverDashboard';
+import DriverWallet from './pages/driver/DriverWallet';
+import DriverOnboarding from './pages/driver/DriverOnboarding';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import DriverManagement from './pages/admin/DriverManagement';
+import PendingDrivers from './pages/admin/PendingDrivers';
 
 function ProtectedRoute({ user, roles, children }) {
   if (!user) return <Navigate to="/login" />;
@@ -48,6 +55,9 @@ export default function App() {
         <Route path="/register" element={
           user ? <Navigate to="/" /> : <Register setUser={setUser} />
         } />
+        <Route path="/forgot-password" element={
+          user ? <Navigate to="/" /> : <ForgotPassword />
+        } />
         
         <Route path="/customer/booking" element={
           <ProtectedRoute user={user} roles={['CUSTOMER']}>
@@ -59,16 +69,46 @@ export default function App() {
             <MyTrips />
           </ProtectedRoute>
         } />
+        <Route path="/customer/ratings" element={
+          <ProtectedRoute user={user} roles={['CUSTOMER']}>
+            <MyRatings />
+          </ProtectedRoute>
+        } />
+        <Route path="/customer/wallet" element={
+          <ProtectedRoute user={user} roles={['CUSTOMER']}>
+            <MyWallet />
+          </ProtectedRoute>
+        } />
         
         <Route path="/driver" element={
           <ProtectedRoute user={user} roles={['DRIVER']}>
             <DriverDashboard />
           </ProtectedRoute>
         } />
+        <Route path="/driver/wallet" element={
+          <ProtectedRoute user={user} roles={['DRIVER']}>
+            <DriverWallet />
+          </ProtectedRoute>
+        } />
+        <Route path="/driver/onboarding" element={
+          <ProtectedRoute user={user} roles={['DRIVER']}>
+            <DriverOnboarding user={user} setUser={setUser} />
+          </ProtectedRoute>
+        } />
         
         <Route path="/admin" element={
           <ProtectedRoute user={user} roles={['ADMIN']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/drivers" element={
+          <ProtectedRoute user={user} roles={['ADMIN']}>
+            <DriverManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/pending-drivers" element={
+          <ProtectedRoute user={user} roles={['ADMIN']}>
+            <PendingDrivers />
           </ProtectedRoute>
         } />
 

@@ -5,6 +5,7 @@ import { login } from '../services/api';
 export default function Login({ setUser }) {
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
+  const [lockInfo, setLockInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function Login({ setUser }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLockInfo(null);
     setLoading(true);
     try {
       const { data } = await login(form);
@@ -19,11 +21,26 @@ export default function Login({ setUser }) {
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
       
+      // Kiểm tra tài xế chưa được duyệt
+      if (data.requiresApproval) {
+        navigate('/driver/onboarding');
+        return;
+      }
+      
       if (data.user.role === 'CUSTOMER') navigate('/customer/booking');
       else if (data.user.role === 'DRIVER') navigate('/driver');
       else navigate('/admin');
     } catch (err) {
-      setError(err.response?.data?.message || 'Đăng nhập thất bại');
+      if (err.response?.status === 403) {
+        // Tài khoản bị khóa
+        setLockInfo({
+          message: err.response.data.message,
+          reason: err.response.data.reason,
+          lockedAt: err.response.data.lockedAt
+        });
+      } else {
+        setError(err.response?.data?.message || 'Đăng nhập thất bại');
+      }
     } finally {
       setLoading(false);
     }
@@ -94,6 +111,28 @@ export default function Login({ setUser }) {
               </div>
             )}
 
+            {lockInfo && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">🔒</span>
+                  <p className="text-red-700 font-semibold">{lockInfo.message}</p>
+                </div>
+                <div className="ml-9 space-y-1">
+                  <p className="text-red-600 text-sm">
+                    <span className="font-medium">Lý do:</span> {lockInfo.reason}
+                  </p>
+                  {lockInfo.lockedAt && (
+                    <p className="text-red-500 text-xs">
+                      Khóa lúc: {new Date(lockInfo.lockedAt).toLocaleString('vi-VN')}
+                    </p>
+                  )}
+                  <p className="text-gray-600 text-xs mt-2">
+                    Vui lòng liên hệ hotline: <span className="font-semibold">1900-xxxx</span> để được hỗ trợ
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -158,6 +197,12 @@ export default function Login({ setUser }) {
                   <span>Đăng nhập</span>
                 )}
               </button>
+
+              <div className="text-right">
+                <Link to="/forgot-password" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                  Quên mật khẩu?
+                </Link>
+              </div>
             </form>
 
             <div className="mt-6 text-center">
