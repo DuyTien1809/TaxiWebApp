@@ -87,4 +87,20 @@ export const getPendingDriverDetail = (driverId) => api.get(`/admin/pending-driv
 export const approveDriver = (driverId) => api.put(`/admin/pending-drivers/${driverId}/approve`);
 export const rejectDriver = (driverId, reason) => api.put(`/admin/pending-drivers/${driverId}/reject`, { reason });
 
+// Price Config
+export const getCurrentPrice = () => api.get('/price-config/current');
+export const calculatePrice = (distance) => api.post('/price-config/calculate', { distance });
+export const getAllPriceConfigs = () => api.get('/price-config');
+export const getPriceByMonth = (year, month) => api.get(`/price-config/${year}/${month}`);
+export const createOrUpdatePrice = (data) => api.post('/price-config', data);
+export const deletePriceConfig = (id) => api.delete(`/price-config/${id}`);
+
+// Notifications
+export const getNotifications = (params) => api.get('/notifications', { params });
+export const getUnreadCount = () => api.get('/notifications/unread-count');
+export const markAsRead = (id) => api.put(`/notifications/${id}/read`);
+export const markAllAsRead = () => api.put('/notifications/read-all');
+export const deleteNotification = (id) => api.delete(`/notifications/${id}`);
+export const deleteAllRead = () => api.delete('/notifications/read/all');
+
 export default api;

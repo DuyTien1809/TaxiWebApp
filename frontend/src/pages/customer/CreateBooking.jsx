@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createBooking, getWallet, linkBankAccount, topUpWallet } from '../../services/api';
+import { createBooking, getWallet, linkBankAccount, topUpWallet, calculatePrice as calculatePriceAPI } from '../../services/api';
 import LocationPicker from '../../components/LocationPicker';
 import LeafletMap from '../../components/LeafletMap';
-
-const PRICE_PER_KM = 10000;
 
 const BANKS = [
   'Vietcombank', 'BIDV', 'Agribank', 'Techcombank', 'VPBank',
@@ -44,15 +42,23 @@ export default function CreateBooking() {
     }
   };
 
-  const calculatePrice = (distanceMeters) => {
-    const km = distanceMeters / 1000;
-    return Math.round(km * PRICE_PER_KM);
+  const calculatePrice = async (distanceMeters) => {
+    try {
+      const { data } = await calculatePriceAPI(distanceMeters);
+      return data.totalPrice;
+    } catch (err) {
+      console.error('Error calculating price:', err);
+      // Fallback to default calculation
+      const km = distanceMeters / 1000;
+      return Math.round((10000 + km * 10000) / 1000) * 1000;
+    }
   };
 
-  const handleRouteCalculated = (info) => {
+  const handleRouteCalculated = async (info) => {
+    const price = await calculatePrice(info.distance);
     setRouteInfo({
       ...info,
-      price: calculatePrice(info.distance)
+      price
     });
   };
 

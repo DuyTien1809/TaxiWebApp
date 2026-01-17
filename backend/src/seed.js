@@ -6,6 +6,7 @@ const Payment = require('./models/Payment');
 const Wallet = require('./models/Wallet');
 const DriverEarning = require('./models/DriverEarning');
 const Rating = require('./models/Rating');
+const PriceConfig = require('./models/PriceConfig');
 
 const PLATFORM_FEE_PERCENT = 20;
 
@@ -21,6 +22,8 @@ const seedData = async () => {
     await Wallet.deleteMany({});
     await DriverEarning.deleteMany({});
     await Rating.deleteMany({});
+    await PriceConfig.deleteMany({});
+    await mongoose.connection.db.collection('notifications').deleteMany({});
     console.log('Cleared existing data');
 
     // Create Admin
@@ -60,7 +63,20 @@ const seedData = async () => {
       name: 'Le Van C',
       phone: '0903333333',
       email: 'taixe1@gmail.com',
-      driverStatus: 'RANH'
+      driverStatus: 'RANH',
+      driverApprovalStatus: 'APPROVED',
+      agreedToRules: true,
+      agreedToRulesAt: new Date(),
+      approvedAt: new Date(),
+      driverInfo: {
+        idNumber: '001234567890',
+        licenseNumber: 'B2-123456',
+        vehicleType: 'XE_4_CHO',
+        vehicleBrand: 'Toyota',
+        vehicleModel: 'Vios',
+        vehiclePlate: '59A-12345',
+        vehicleYear: 2020
+      }
     });
 
     const driver2 = await User.create({
@@ -70,10 +86,54 @@ const seedData = async () => {
       name: 'Pham Van D',
       phone: '0904444444',
       email: 'taixe2@gmail.com',
-      driverStatus: 'RANH'
+      driverStatus: 'RANH',
+      driverApprovalStatus: 'APPROVED',
+      agreedToRules: true,
+      agreedToRulesAt: new Date(),
+      approvedAt: new Date(),
+      driverInfo: {
+        idNumber: '001234567891',
+        licenseNumber: 'B2-654321',
+        vehicleType: 'XE_4_CHO',
+        vehicleBrand: 'Honda',
+        vehicleModel: 'City',
+        vehiclePlate: '59B-67890',
+        vehicleYear: 2021
+      }
     });
 
     console.log('Created users');
+
+    // Create Price Configs for current and next few months
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Tháng hiện tại
+    await PriceConfig.create({
+      month: currentMonth,
+      year: currentYear,
+      pricePerKm: 10000,
+      basePrice: 10000,
+      minPrice: 15000,
+      description: `Giá cước tháng ${currentMonth}/${currentYear}`,
+      createdBy: admin._id
+    });
+
+    // Tháng sau (nếu cần)
+    const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+    await PriceConfig.create({
+      month: nextMonth,
+      year: nextYear,
+      pricePerKm: 10000,
+      basePrice: 10000,
+      minPrice: 15000,
+      description: `Giá cước tháng ${nextMonth}/${nextYear}`,
+      createdBy: admin._id
+    });
+
+    console.log('Created price configs');
 
     // Create Wallets for customers
     const wallet1 = await Wallet.create({
@@ -312,42 +372,7 @@ const seedData = async () => {
     });
     await Booking.findByIdAndUpdate(booking2._id, { customerRated: true });
 
-    // Booking3 chưa đánh giá để test
-    // await Rating.create({...});
-
-    // Tài xế đánh giá khách
-    await Rating.create({
-      bookingId: booking1._id,
-      fromUserId: driver1._id,
-      toUserId: customer1._id,
-      type: 'DRIVER_TO_CUSTOMER',
-      stars: 5,
-      comment: 'Khách lịch sự, đúng hẹn',
-      tags: ['LICH_SU', 'DUNG_HEN']
-    });
-    await Booking.findByIdAndUpdate(booking1._id, { driverRated: true });
-
-    await Rating.create({
-      bookingId: booking2._id,
-      fromUserId: driver1._id,
-      toUserId: customer2._id,
-      type: 'DRIVER_TO_CUSTOMER',
-      stars: 4,
-      comment: 'Khách dễ chịu',
-      tags: ['DE_CHIU']
-    });
-    await Booking.findByIdAndUpdate(booking2._id, { driverRated: true });
-
-    await Rating.create({
-      bookingId: booking3._id,
-      fromUserId: driver2._id,
-      toUserId: customer1._id,
-      type: 'DRIVER_TO_CUSTOMER',
-      stars: 5,
-      comment: 'Khách rất tốt',
-      tags: ['LICH_SU', 'DE_CHIU']
-    });
-    await Booking.findByIdAndUpdate(booking3._id, { driverRated: true });
+    // Booking3 chưa đánh giá để test chức năng đánh giá
 
     console.log('Created ratings');
 

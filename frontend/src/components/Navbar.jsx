@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getPendingRatingsCount } from '../services/api';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar({ user, setUser }) {
   const navigate = useNavigate();
@@ -65,6 +66,11 @@ export default function Navbar({ user, setUser }) {
                 )}
                 {user.role === 'ADMIN' && (
                   <NavLink to="/admin" icon="📊" text="Quản lý" />
+                )}
+                
+                {/* Notification Bell */}
+                {(user.role === 'CUSTOMER' || user.role === 'DRIVER') && (
+                  <NotificationBell />
                 )}
                 
                 <div className="flex items-center gap-3 ml-4 pl-4 border-l border-white/20">

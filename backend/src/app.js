@@ -14,6 +14,8 @@ const driverEarningRoutes = require('./routes/driverEarningRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const otpRoutes = require('./routes/otpRoutes');
+const priceConfigRoutes = require('./routes/priceConfigRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/driver-earnings', driverEarningRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ratings', ratingRoutes);
+app.use('/api/price-config', priceConfigRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/', (req, res) => {

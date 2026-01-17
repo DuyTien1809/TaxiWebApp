@@ -280,6 +280,28 @@ exports.cancelBooking = async (req, res) => {
     if (booking.status === 'HOAN_THANH' || booking.status === 'HUY') {
       return res.status(400).json({ message: 'Không thể hủy booking này' });
     }
+    
+    // Hoàn tiền nếu đã thanh toán bằng ví
+    if (booking.paymentMethod === 'CHUYEN_KHOAN' && booking.paymentStatus === 'DA_THANH_TOAN') {
+      const wallet = await Wallet.findOne({ userId: booking.customerId });
+      if (wallet) {
+        wallet.balance += booking.price;
+        wallet.transactions.push({
+          type: 'HOAN_TIEN',
+          amount: booking.price,
+          description: `Hoàn tiền hủy chuyến: ${booking.pickup.address} → ${booking.dropoff.address}`,
+          bookingId: booking._id
+        });
+        await wallet.save();
+      }
+      
+      // Cập nhật trạng thái payment
+      await Payment.findOneAndUpdate(
+        { bookingId: booking._id },
+        { status: 'HOAN_TIEN' }
+      );
+    }
+    
     if (booking.driverId) {
       await User.findByIdAndUpdate(booking.driverId, { driverStatus: 'RANH' });
     }

@@ -15,6 +15,7 @@ import DriverOnboarding from './pages/driver/DriverOnboarding';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import DriverManagement from './pages/admin/DriverManagement';
 import PendingDrivers from './pages/admin/PendingDrivers';
+import PriceManagement from './pages/admin/PriceManagement';
 
 function ProtectedRoute({ user, roles, children }) {
   if (!user) return <Navigate to="/login" />;
@@ -109,6 +110,11 @@ export default function App() {
         <Route path="/admin/pending-drivers" element={
           <ProtectedRoute user={user} roles={['ADMIN']}>
             <PendingDrivers />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/price" element={
+          <ProtectedRoute user={user} roles={['ADMIN']}>
+            <PriceManagement />
           </ProtectedRoute>
         } />
 

@@ -91,6 +91,12 @@ export default function AdminDashboard() {
             >
               📋 Duyệt tài xế
             </Link>
+            <Link
+              to="/admin/price"
+              className="px-4 py-2 rounded-xl font-medium transition-all text-gray-600 hover:bg-gray-100 flex items-center gap-1"
+            >
+              💰 Quản lý giá
+            </Link>
           </div>
         </div>
 
